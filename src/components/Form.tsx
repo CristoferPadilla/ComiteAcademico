@@ -3,18 +3,17 @@ import { api } from "../api/db";
 import { asignaturas, familiaCarreras, cuatrimestres, unidadesAprendizaje } from "../data/data";
 
 const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
-    const [numUnidades, setNumUnidades] = useState<number>(1);
-    const [formData, setFormData] = useState<any>({
+    const initialFormData = {
         id: Date.now().toString(),
         materia: asignaturas[0].value,
         familia: familiaCarreras[0].value,
         cuatrimestre: cuatrimestres[0].value,
-        unidades: unidadesAprendizaje[0].value,
+        unidades: 1, 
         profesor: asignaturas[0].profesor,
         horas: asignaturas[0].horas,
         competencia: "",
         objetivoGeneral: "",
-        unidadesDetalle: Array.from({ length: numUnidades }, () => ({
+        unidadesDetalle: Array.from({ length: 1 }, () => ({
             competenciaEspecifica: "",
             semanas: '',
             resultadoAprendizaje: "",
@@ -22,27 +21,44 @@ const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
             hacerSer: '',
             horas: ''
         }))
-    });
+    };
+
+    const [numUnidades, setNumUnidades] = useState<number>(1);
+    const [formData, setFormData] = useState<any>(initialFormData);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>, index?: number) => {
         const { name, value } = e.target;
+    
         if (index !== undefined) {
-            const updatedUnidadesDetalle = formData.unidadesDetalle.map((unidad: any, i: number) =>
-                i === index ? { ...unidad, [name.split('-')[1]]: value } : unidad
-            );
-
-            // Validar que el total de horas no exceda las horas de la asignatura pq no quiero más horas de las que se pueden daah
-            const totalHoras = updatedUnidadesDetalle.reduce((acc: number, unidad: any) => acc + parseInt(unidad.horas || 0, 10), 0);
+            const field = name.split('-')[1];
+            const updatedUnidadesDetalle = formData.unidadesDetalle.map((unidad: any, i: number) => {
+                if (i === index) {
+                    return { ...unidad, [field]: value };
+                }
+                return unidad;
+            });
+    
+            //Vemos que no se pase de 100 sino petamos
+            const totalSaber = updatedUnidadesDetalle.reduce((acc: number, unidad: any) => acc + (parseFloat(unidad.saber) || 0), 0);
+            const totalHacerSer = updatedUnidadesDetalle.reduce((acc: number, unidad: any) => acc + (parseFloat(unidad.hacerSer) || 0), 0);
+    
+            if (totalSaber > 100 || totalHacerSer > 100) {
+                alert(`La suma total de Saber (${totalSaber}%) o Hacer-Ser (${totalHacerSer}%) no puede superar el 100%.`);
+                return;
+            }
+    
+            //Vemos que no se pase de las horas de la asignatura sino petamos
+            const totalHoras = updatedUnidadesDetalle.reduce((acc: number, unidad: any) => acc + parseInt(unidad.horas || '0', 10), 0);
             if (totalHoras <= formData.horas) {
                 setFormData({ ...formData, unidadesDetalle: updatedUnidadesDetalle });
             } else {
-                alert(`El total de horas asignadas a las unidades no puede exceder ${formData.horas} horas.`);
+                alert(`El total de horas asignadas a las unidades no puede exceder ${formData.horas} horas. Está asignando ${totalHoras} horas.`);
             }
         } else {
             setFormData({ ...formData, [name]: value });
         }
     };
-
+    
     const handleNumUnidadesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newNumUnidades = parseInt(e.target.value, 10);
         setNumUnidades(newNumUnidades);
@@ -56,12 +72,45 @@ const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
                 horas: ''
             }
         );
-        setFormData({ ...formData, unidadesDetalle: updatedUnidadesDetalle });
+        setFormData({ ...formData, unidades: newNumUnidades, unidadesDetalle: updatedUnidadesDetalle });
+    };
+    //Si o sí, deben de llenarse todos los datos, sino petamos
+    const validateForm = () => {
+        if (!formData.competencia || !formData.objetivoGeneral) {
+            alert("Los campos 'Competencia' y 'Objetivo General' no pueden estar vacíos.");
+            return false;
+        }
+
+        for (const unidad of formData.unidadesDetalle) {
+            if (
+                !unidad.competenciaEspecifica ||
+                !unidad.semanas ||
+                !unidad.resultadoAprendizaje ||
+                !unidad.saber ||
+                !unidad.hacerSer ||
+                !unidad.horas
+            ) {
+                alert("Todos los campos dentro de cada unidad deben estar completos.");
+                return false;
+            }
+            if (parseFloat(unidad.saber) < 0 || parseFloat(unidad.hacerSer) < 0 || parseFloat(unidad.saber) > 100 || parseFloat(unidad.hacerSer) > 100) {
+                alert("Los valores de los porcentajes de 'Saber' y 'Hacer-Ser' deben estar entre 0 y 100.");
+                return false;
+            }
+        }
+        return true;
     };
 
+    
     const handleAddRecord = async () => {
+        if (!validateForm()) {
+            return;
+        }
+
         await api.saveItem("registros", formData);
         onAddRecord();
+        setFormData(initialFormData);
+        setNumUnidades(1);
     };
 
     return (
@@ -133,7 +182,6 @@ const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
                 />
             </div>
 
-
             <div className="mt-4">
                 {formData.unidadesDetalle.map((unidad: any, index: number) => (
                     <div key={index} className="mt-4 p-4 border rounded">
@@ -153,7 +201,7 @@ const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
                             placeholder="Número de semanas"
                             className="border p-2 w-1/3 rounded mt-2 mr-2"
                         />
-                                                <input
+                        <input
                             type="number"
                             name={`unidad-horas-${index}`}
                             value={unidad.horas}
@@ -182,7 +230,7 @@ const Form = ({ onAddRecord }: { onAddRecord: () => void }) => {
                             value={unidad.hacerSer}
                             onChange={(e) => handleChange(e, index)}
                             placeholder="Porcentaje Hacer-Ser"
-                            className="border p-2 w-1/3  rounded mt-2"
+                            className="border p-2 w-1/3 rounded mt-2"
                         />
                     </div>
                 ))}

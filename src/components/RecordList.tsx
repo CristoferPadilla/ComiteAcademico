@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api/db";
 import { asignaturas, cuatrimestres } from "../data/data";
 import Modal from './Modal';
+import { TrashIcon, EyeIcon } from "@heroicons/react/24/outline";
+
 
 const RecordList = () => {
     const [registros, setRegistros] = useState<any[]>([]);
@@ -19,12 +21,22 @@ const RecordList = () => {
 
     const handleRowClick = (record: any) => {
         setSelectedRecord(record);
+        console.log(record);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setSelectedRecord(null);
+    };
+
+    const handleDelete = async (id: string) => {
+        try {
+            await api.deleteItem("registros", id);
+            setRegistros(registros.filter(record => record.id !== id));  
+        } catch (error) {
+            console.error("Error al eliminar el registro:", error);
+        }
     };
 
     return (
@@ -36,18 +48,34 @@ const RecordList = () => {
                         <th className="border p-2 text-left">Cuatrimestre</th>
                         <th className="border p-2 text-left">Asignatura</th>
                         <th className="border p-2 text-left">Unidades</th>
+                        <th className="border p-2 text-left">Acciones</th> 
                     </tr>
                 </thead>
                 <tbody>
                     {registros.map((record, index) => (
                         <tr 
-                            key={index} 
-                            className="text-center odd:bg-white even:bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => handleRowClick(record)}
+                            className="text-center odd:bg-white even:bg-gray-50 hover:bg-gray-100 "
+                    
                         >
                             <td className="border p-2">{cuatrimestres.find(c => c.value === record.cuatrimestre)?.label}</td>
                             <td className="border p-2">{asignaturas.find(a => a.value === record.materia)?.label}</td>
                             <td className="border p-2">{record.unidades} Unidad(es)</td>
+                            <td className="border p-0.5">
+                                <button
+                                                            key={index} 
+
+                                        onClick={() => handleRowClick(record)}
+                                    className="text-gray cursor-pointer mr-15 hover:text-blue-700"
+                                >
+                                    <EyeIcon className="h-5 w-5" cursor-pointer /> 
+                                    </button>
+                                    <button
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }} 
+                                    className="text-red-500 hover:text-red-700"
+                                >
+                                    <TrashIcon className="h-5 w-5 cursor-pointer" /> 
+                                    </button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
